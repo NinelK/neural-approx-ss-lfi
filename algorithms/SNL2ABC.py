@@ -102,16 +102,15 @@ class SNL2_ABC(ABC_algorithms.Base_ABC):
             self.max_ll = -math.inf
             if self.problem.is_batch_sampling_supported: #unfinished, need to modify log_prob somehow...
                 theta = self.problem.sample_from_prior(size=20000)
-                print(theta.shape)
                 ll = self.log_likelihood(theta)
                 self.max_ll = ll.max()
             else:
-                for j in range(2000): # very inefficienit
+                for j in range(20000): # very inefficienit
                     theta = self.problem.sample_from_prior()
                     ll = self.log_likelihood(theta)
                     if ll > self.max_ll: self.max_ll = ll
-                    if j%100==0:
-                        print(j)
+                    #if j%1000==0:
+                    #    print(j)
         # rejection sampling
         c = 0
         while True:
@@ -120,7 +119,7 @@ class SNL2_ABC(ABC_algorithms.Base_ABC):
             u = distributions.uniform.draw_samples(0, 1, 1)[0]
             if np.log(u) < prob_accept: break
             c+=1
-            if (c%10==0): # while True is dangerous... let's at least make it more informative
+            if (c%100==0): # while True is dangerous... let's at least make it more informative
                 print(f"Already {c} rejections in rejection sampling!")
         return theta
         
