@@ -100,16 +100,28 @@ class SNL2_ABC(ABC_algorithms.Base_ABC):
         # pilot run for rej sampling
         if self.max_ll is None:
             self.max_ll = -math.inf
-            for j in range(20000):
-                theta = self.problem.sample_from_prior()
+            if self.problem.is_batch_sampling_supported: #unfinished, need to modify log_prob somehow...
+                theta = self.problem.sample_from_prior(size=20000)
+                print(theta.shape)
                 ll = self.log_likelihood(theta)
-                if ll > self.max_ll: self.max_ll = ll
+                self.max_ll = ll.max()
+            else:
+                for j in range(2000): # very inefficienit
+                    theta = self.problem.sample_from_prior()
+                    ll = self.log_likelihood(theta)
+                    if ll > self.max_ll: self.max_ll = ll
+                    if j%100==0:
+                        print(j)
         # rejection sampling
+        c = 0
         while True:
             theta = self.problem.sample_from_prior()
             prob_accept = self.log_likelihood(theta) - self.max_ll
             u = distributions.uniform.draw_samples(0, 1, 1)[0]
             if np.log(u) < prob_accept: break
+            c+=1
+            if (c%10==0): # while True is dangerous... let's at least make it more informative
+                print(f"Already {c} rejections in rejection sampling!")
         return theta
         
     def log_likelihood(self, theta, use_ratio=False):
@@ -147,7 +159,7 @@ class SNL2_ABC(ABC_algorithms.Base_ABC):
         [n, dim] = samples.shape
         mu = samples.mean(axis=0, keepdims=True)
         M = np.mat(samples - mu)
-        cov = np.matmul(M.T, M)/n
+        cov = np.matmul(M.T, M)/n# + np.eye(M.shape[0])*0.01
         print('mu=', mu)
         print('cov=', cov)
         
