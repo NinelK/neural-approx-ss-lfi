@@ -94,34 +94,33 @@ class SNL2_ABC(ABC_algorithms.Base_ABC):
         self.vae_net = net
         self.vae_array.append(net)
 
-    def sample_from_nde(self):
+    def sample_from_nde(self, size=1):
         net = self.nde_net
         net.eval()
         # pilot run for rej sampling
         if self.max_ll is None:
             self.max_ll = -math.inf
-            if self.problem.is_batch_sampling_supported: #unfinished, need to modify log_prob somehow...
-                theta = self.problem.sample_from_prior(size=20000)
+            for j in range(20000): # very inefficienit
+                theta = self.problem.sample_from_prior()
                 ll = self.log_likelihood(theta)
-                self.max_ll = ll.max()
-            else:
-                for j in range(20000): # very inefficienit
-                    theta = self.problem.sample_from_prior()
-                    ll = self.log_likelihood(theta)
-                    if ll > self.max_ll: self.max_ll = ll
+                if ll > self.max_ll: self.max_ll = ll
                     #if j%1000==0:
                     #    print(j)
         # rejection sampling
-        c = 0
-        while True:
+        c,i = 0,0
+        thetas = []
+        while i<size:
             theta = self.problem.sample_from_prior()
             prob_accept = self.log_likelihood(theta) - self.max_ll
             u = distributions.uniform.draw_samples(0, 1, 1)[0]
-            if np.log(u) < prob_accept: break
+            if np.log(u) < prob_accept:
+                i+=1
+                c=0
+                thetas.append(theta)
             c+=1
             if (c%100==0): # while True is dangerous... let's at least make it more informative
                 print(f"Already {c} rejections in rejection sampling!")
-        return theta
+        return np.array(thetas)
         
     def log_likelihood(self, theta, use_ratio=False):
         if not use_ratio:
@@ -154,7 +153,9 @@ class SNL2_ABC(ABC_algorithms.Base_ABC):
         '''
         # minimize KL
         print('\n > fitting proposal')
-        samples = np.vstack([self.sample_from_nde() for i in range(200)])
+        samples = self.sample_from_nde(size=200)
+        print(samples.shape)
+        #This was increadibly inefficient with 200 pilot runs: np.vstack([self.sample_from_nde() for i in range(200)])
         [n, dim] = samples.shape
         mu = samples.mean(axis=0, keepdims=True)
         M = np.mat(samples - mu)
@@ -203,8 +204,8 @@ class SNL2_ABC(ABC_algorithms.Base_ABC):
             self.all_samples.append(self.samples)
             self.fit_vae()
             self.fit_nde()
-            self.learn_proposal()
-            self.prior = self.sample_from_proposal
+            #self.learn_proposal()
+            self.prior = self.problem.sample_from_prior #no need to learn, prior=true distr
             print('\n')
         self.num_sim = total_num_sim
         
